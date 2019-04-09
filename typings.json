@@ -1,0 +1,7 @@
+{
+  "name": "phoenix-move-windows",
+  "dependencies": {},
+  "globalDependencies": {
+    "phoenix-typings": "github:mafredri/phoenix-typings"
+  }
+}
