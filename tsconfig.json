@@ -4,17 +4,25 @@
     "moduleResolution": "node",
     "baseUrl": "src",
     "outDir": "out",
-    "target": "es2016",
+    "target": "es6",
     "strict": false,
     "typeRoots": [
       "node_modules/@types",
       "typings/globals"
     ],
+    "declaration": true,
+    "declarationDir": "decl",
     "lib": [
-      "es2016"
+      "es6"
     ]
   },
+  "include": [
+    "src"
+  ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "lib",
+    "out",
+    "decl"
   ]
 }
