@@ -1,10 +1,11 @@
-// import _ = require('lodash');
-
 const axes = {
   x: { start: 'left', end: 'right' },
   y: { start: 'top', end: 'bottom' }
 };
 
+function looseEquals(arg1: number, arg2: number, epsilon = 0.01) {
+  return Math.abs(arg1 - arg2) <= epsilon;
+}
 // Classes
 
 class Logger {
@@ -61,15 +62,18 @@ class WindowBinding {
   appId: string;
   screen: number;
   space: number;
-  maximize: boolean;
-  constructor(appId: string, screen = 0, space = 0, maximize = false) {
+  frame: Rectangle;
+  constructor(appId: string, screen = 0, space = 0, frame?: Rectangle) {
     if (appId.constructor.name !== 'String' || appId === '') {
       throw new Error('appId must be a non-empty string');
     }
     this.appId = appId;
     this.screen = screen;
     this.space = space;
-    this.maximize = maximize;
+    this.frame = frame;
+  }
+  static get maximize() : Rectangle {
+    return { x: 0, y: 0, width: 100, height: 100 };
   }
 }
 /**
@@ -183,11 +187,6 @@ class WindowManager {
   get bindingSet() : BindingSet {
     return this._bindingSet;
   }
-  looseEquals(arg1: number, arg2: number, epsilon = 0.01) {
-    return Math.abs(arg1 - arg2) <= epsilon;
-  }
-
-
 
   _reframe(windowFrame: Rectangle, oldScreenFrame: Rectangle, newScreenFrame: Rectangle, axis: string, size: string, newFrame: object) {
     const logger = this._logger;
@@ -205,7 +204,7 @@ class WindowManager {
       logger.logIndent(3, `${axis}: Shrink`);
       newFrame[size] = newScreenFrame[size];
     }
-    else if (this.looseEquals(windowFrame[size], oldScreenFrame[size], this._snapToEdgeThreshold)) {
+    else if (looseEquals(windowFrame[size], oldScreenFrame[size], this._snapToEdgeThreshold)) {
       // Window was maximized. Keep window maximized
       logger.logIndent(3, `${axis}: Maximize`);
       newFrame[size] = newScreenFrame[size];
@@ -254,24 +253,28 @@ class WindowManager {
     return newFrame;
   }
 
-  resizeWindow(windowHandle: Window, fromScreenHandle: Screen, toScreenHandle: Screen, maximize = false) {
+  resizeWindow(windowHandle: Window, fromScreenHandle: Screen, toScreenHandle: Screen, frame: Rectangle) {
     const toScreenFrame = toScreenHandle.flippedVisibleFrame();
     const fromScreenFrame = fromScreenHandle.flippedVisibleFrame();
     const oldWindowFrame = windowHandle.frame();
     var newWindowFrame: Rectangle;
-    if (maximize) {
-      newWindowFrame = toScreenFrame;
+    if (frame) {
+      const x = toScreenFrame.x + toScreenFrame.width * (frame.x / 100);
+      const y = toScreenFrame.y + toScreenFrame.height * (frame.y / 100);
+      const width = toScreenFrame.width * (frame.width / 100);
+      const height = toScreenFrame.height * (frame.height / 100);
+      newWindowFrame = { x, y, width, height };
     }
     else {
        newWindowFrame = this.reframe(oldWindowFrame, fromScreenFrame, toScreenFrame);
     }
     // @ts-ignore
-    if (_.isEqual(oldWindowFrame, newWindowFrame)) {
+    if (_.every(newWindowFrame, (value, key) => looseEquals(value, oldWindowFrame[key], 0.5 ))) {
       this._logger.logIndent(3, 'New frame is same as old frame, not changing.');
     }
     else {
-      if (maximize) {
-        this._logger.logIndent(3, 'Maximizing');
+      if (frame) {
+        this._logger.logIndent(3, 'Resizing to user-specified dimensions');
       }
       windowHandle.setFrame(newWindowFrame);
     }
@@ -282,7 +285,7 @@ class WindowManager {
     toSpace.addWindows([windowHandle]);
   }
 
-  moveBoundWindows(alwaysResize = false) : void {
+  moveBoundWindows() : void {
     const logger = this._logger;
     logger.log("Retrieving screens.");
     const screenHandles = Screen.all();
@@ -325,15 +328,15 @@ class WindowManager {
                 windowHandle,
                 screenHandles[screen],
                 newScreenHandle,
-                binding.maximize
+                binding.frame
               );
             }
-            else if (alwaysResize) {
+            else if (binding.frame) {
               this.resizeWindow(
                 windowHandle,
                 screenHandles[screen],
                 screenHandles[screen],
-                binding.maximize
+                binding.frame
               );
             }
           }
@@ -349,211 +352,89 @@ class WindowManager {
 const loggingEnabled = true;
 const loggingIndent = 4; // spaces
 const snapToEdgeThreshold = 5; // logical pixels
-const alwaysResize = true; // Always resize/maximize windows, even if they're already on the correct screen
 
 // Key bindings
 const logger = new Logger(loggingEnabled, loggingIndent);
 const windowManager = new WindowManager({logger, snapToEdgeThreshold});
 
-//const enumerateKey = new Key('x', [ 'ctrl', 'shift', 'alt' ], enumerateAppWindows);
-const moveKey = new Key('z', [ 'ctrl', 'shift', 'alt' ], () => windowManager.moveBoundWindows(alwaysResize));
+const enumerateKey = new Key('x', [ 'ctrl', 'shift', 'alt' ], () => enumerateAppWindows(logger));
+const moveKey = new Key('z', [ 'ctrl', 'shift', 'alt' ], () => windowManager.moveBoundWindows());
 
 // Window bindings
 
-//const bindingSets = initBindingSets(); // Do not modify
-//const excludes = initExcludes(); // Do not modify
-
-
 // If a binding exists for a screen or space that does not exist, the window will not be moved.
 // bindingSet 'default' always exists and will be used if no other set matches.
-// bindingSet(setName, [number_of_spaces_on_screen_0, number_of_spaces_on_screen_1, ...]);
-// bind(setName, appId, screen, space, maximize [default = false]);
+// new SpaceBinding(bindingName, [number_of_spaces_on_screen_0, number_of_spaces_on_screen_1, ...]);
+// new WindowBinding(appId, screen, space, [frame]);
+// frame is a Rectangle with all values as percentages. The values will be scaled to the dimensions of the destination screen.
+// WindowBinding.maximize is short for { x: 0, y:0, width: 100, height: 100 }
 // If appId is '*', all windows except excluded windows will be moved to that screen and space.
 
-exclude('net.antelle.keeweb'); // on all spaces of primary screen
+windowManager.exclude('net.antelle.keeweb'); // on all spaces of primary screen
 
-bindingSet('workDocked', [1, 2, 3]);
+const workDocked = new SpaceBinding('workDocked', [1, 2, 3]);
+windowManager.bindingSet.add(workDocked);
+
 // arrangement is laptop[2], vertical screen[1], horizontal screen[3]
 // but spaces are labeled (5, 6) (1) (2, 3, 4) in the UI, for some reason
 
 //bind('workDocked', 'google-play-music-desktop-player', 0, 0);
 //bind('workDocked', 'com.apple.ActivityMonitor', 0, 0);
-bind('workDocked', '*', 0, 0);
+workDocked.add(new WindowBinding('*', 0, 0));
 
-bind('workDocked', 'org.mozilla.firefox', 1, 0, true);
-bind('workDocked', 'com.tinyspeck.slackmacgap', 1, 1);
-bind('workDocked', 'com.apple.Notes', 1, 1);
-bind('workDocked', 'com.apple.iCal', 1, 1);
+workDocked.add(new WindowBinding('org.mozilla.firefox', 1, 0, WindowBinding.maximize));
+workDocked.add(new WindowBinding('com.tinyspeck.slackmacgap', 1, 1, { x: 0, y: 0, width: 85, height: 85 }));
+workDocked.add(new WindowBinding('com.apple.Notes', 1, 1, { x: 40, y: 10, width: 60, height: 90 }));
+workDocked.add(new WindowBinding('com.apple.iCal', 1, 1, { x: 0, y: 25, width: 70, height: 75 }));
 
-bind('workDocked', 'com.postmanlabs.mac', 2, 0);
-bind('workDocked', 'com.TechSmith.Snagit2018', 2, 0);
-bind('workDocked', 'com.googlecode.iterm2', 2, 1, true);
-bind('workDocked', 'com.jetbrains.intellij.ce', 2, 2, true);
+workDocked.add(new WindowBinding('com.postmanlabs.mac', 2, 0));
+workDocked.add(new WindowBinding('com.TechSmith.Snagit2018', 2, 0));
+workDocked.add(new WindowBinding('com.googlecode.iterm2', 2, 1, WindowBinding.maximize));
+workDocked.add(new WindowBinding('com.jetbrains.intellij.ce', 2, 2, WindowBinding.maximize));
 
-bindingSet('undocked', [4]);
+const undocked = new SpaceBinding('undocked', [4]);
+windowManager.bindingSet.add(undocked);
 
-bind('undocked', 'com.tinyspeck.slackmacgap', 0, 0);
-bind('undocked', 'com.apple.Notes', 0, 0);
-bind('undocked', 'com.apple.iCal', 0, 0);
+undocked.add(new WindowBinding('com.tinyspeck.slackmacgap', 0, 0));
+undocked.add(new WindowBinding('com.apple.Notes', 0, 0));
+undocked.add(new WindowBinding('com.apple.iCal', 0, 0));
 
-bind('undocked', 'org.mozilla.firefox', 0, 1, true);
+undocked.add(new WindowBinding('org.mozilla.firefox', 0, 1, WindowBinding.maximize));
 
-bind('undocked', '*', 0, 2);
+undocked.add(new WindowBinding('*', 0, 2));
 
-bind('undocked', 'com.googlecode.iterm2', 0, 3, true);
+undocked.add(new WindowBinding('com.googlecode.iterm2', 0, 3, {x: 0, y: 0, width: 90, height: 100}));
 
-bind('undocked', 'com.jetbrains.intellij.ce', 0, 3, true);
+undocked.add(new WindowBinding('com.jetbrains.intellij.ce', 0, 3, {x: 10, y: 0, width: 90, height: 100}));
 
-//bindingSet('homeDocked', []); // TBD
+const homeDocked = new SpaceBinding('homeDocked', []); // TBD
 
-// Logging
-/*
-const indentString = _.repeat(' ', loggingIndent);
-
-function noOp() {};
-
-const log = loggingEnabled ?
-  (...args) => { Phoenix.log(...args) } :
-  noOp;
-
-function _logIndent(level: number, message: string, ...args: any[]) {
-  message = _.repeat(indentString, level) + message.toString();
-  Phoenix.log(message, ...args);
-}
-const logIndent = loggingEnabled ? _logIndent : noOp;
-*/
-
-// Frame management
-
-
-// Window binding
-
-function bind(setName: string, identifier: string, screen: number, space: number, maximize = false) {
-  //bindingSets[set].bindings[identifier] = { screen, space, maximize };
-  windowManager.bindingSet.binding(setName).add(new WindowBinding(identifier, screen, space, maximize));
-}
-/*
-function unbind(setName: string, identifier: string) {
-  //delete bindingSets[set].bindings[identifier];
-  windowManager.bindingSet.binding(setName).remove(identifier);
-}
-*/
-function bindingSet(setName: string, screenLayout: number[]) {
-  //bindingSets[set] = { screenLayout, bindings: {} };
-  windowManager.bindingSet.add(new SpaceBinding(setName, screenLayout));
-}
-/*
-function getCurrentBindingSetName(bindingSets, currentScreenLayout) {
-  for (const bindingSet in bindingSets) {
-    if (_.isEqual(currentScreenLayout, bindingSets[bindingSet].screenLayout)) {
-      return bindingSet;
-    }
-  }
-  return 'default';
-}
-
-function initBindingSets() {
-  return { default: { screenLayout: [], bindings: {} } };
-}
-
-function getScreenSpaceLayout() {
-  return Screen.all().map(screenHandle => screenHandle.spaces().length);
-}
-
-function initExcludes() {
-  return { };
-}
-*/
-function exclude(appId: string) {
-  //excludes[appId] = true;
-  windowManager.exclude(appId);
-}
-
-// Actions
-/*
-function enumerateAppWindows() {
-  log('Retrieving screens');
+function enumerateAppWindows(logger: Logger) {
+  logger.log('Retrieving screens');
   const screenHandles = Screen.all();
   const screens = { null: 'null' };
   screenHandles.forEach((screenHandle, index) => {
     screens[screenHandle.identifier()] = index;
-    logIndent(1, `screen ${index} = screenID "${screenHandle.identifier()}"`);
+    logger.logIndent(1, `screen ${index} = screenID "${screenHandle.identifier()}"`);
   });
-  log('Retrieving apps');
+  logger.log('Retrieving apps');
   const apps = App.all();
   apps.forEach((appHandle) => {
     const windows = appHandle.windows();
     // Skip apps with no windows
     if (windows.length > 0) {
-      logIndent(1, `appId "${appHandle.bundleIdentifier()}" app "${appHandle.name()}" `);
+      logger.logIndent(1, `appId "${appHandle.bundleIdentifier()}" app "${appHandle.name()}" `);
       windows.forEach((windowHandle) => {
         const screenHandle = windowHandle.screen();
         const screenId = screenHandle ? screenHandle.identifier() : 'null';
-        logIndent(2, `screen ${screens[screenId]} window "${windowHandle.title()}"`);
+        const windowFrame = windowHandle.frame();
+        const screenFrame = screenHandle.flippedVisibleFrame();
+        const x = 100 * (windowFrame.x - screenFrame.x) / screenFrame.width;
+        const y = 100 * (windowFrame.y - screenFrame.y) / screenFrame.height;
+        const width = 100 * windowFrame.width / screenFrame.width;
+        const height = 100 * windowFrame.height / screenFrame.height;
+        logger.logIndent(2, `screen: ${screens[screenId]}, window: "${windowHandle.title()}" x: ${x}, y: ${y}, width: ${width}, height: ${height}`);
       });
     }
   });
 }
-*/
-
-/*
-
-function moveBoundWindows(alwaysResize = false) {
-  log("Retrieving screens.");
-  const screenHandles = Screen.all();
-  const screenSpaceLayout = getScreenSpaceLayout();
-  const bindingSetName = getCurrentBindingSetName(bindingSets, screenSpaceLayout);
-  const bindingSet = bindingSets[bindingSetName].bindings;
-  log(`Screen space layout: [${_.join(screenSpaceLayout, ', ')}]. Using binding set ${bindingSetName}.`);
-  // log(screens);
-  screenHandles.forEach((screenHandle, screen) => {
-    log(`Screen ${screen}`);
-    const spaceHandles = screenHandle.spaces();
-    // log(spaces);
-    spaceHandles.forEach((spaceHandle, space) => {
-      logIndent(1, `Space ${space}`);
-      const windowHandles = spaceHandle.windows();
-      // log(windows);
-      windowHandles.forEach((windowHandle, window) => {
-        const appId = windowHandle.app().bundleIdentifier();
-        logIndent(2, `Window ${window}: "${appId}", "${windowHandle.title()}"`);
-        const binding = bindingSet[appId] || (this._excludes[appId] ? undefined : bindingSet['*']);
-        if (binding) {
-          if (binding.screen !== screen || binding.space !== space) {
-            const newScreenHandle = screenHandles[binding.screen];
-            if (!newScreenHandle) {
-              logIndent(3, `Destination screen ${binding.screen} does not exist, not moving.`);
-              return;
-            }
-            const newSpaceHandle = newScreenHandle.spaces()[binding.space];
-            if (!newSpaceHandle) {
-              logIndent(3, `Destination space ${binding.space} on screen ${binding.screen} does not exist, not moving.`);
-              return;
-            }
-            logIndent(3, `Moving from screen ${screen}, space ${space} to screen ${binding.screen}, space ${binding.space}`);
-            moveWindow(
-              windowHandle,
-              spaceHandles[space],
-              newSpaceHandle
-            );
-            resizeWindow(
-              windowHandle,
-              screenHandles[screen],
-              newScreenHandle,
-              binding.maximize
-            );
-          }
-          else if (alwaysResize) {
-            resizeWindow(
-              windowHandle,
-              screenHandles[screen],
-              screenHandles[screen],
-              binding.maximize
-            );
-          }
-        }
-      });
-    });
-  });
-}
-*/

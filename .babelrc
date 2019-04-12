@@ -4,15 +4,13 @@
     ["@babel/preset-env",
       {
         "targets": {
-          "safari": 11
-        },
-        "modules": "commonjs"
+          "safari": 12
+        }
       }
     ]
   ],
     "plugins": [
       "@babel/proposal-class-properties",
       "@babel/proposal-object-rest-spread"
-    ],
-
+    ]
 }
