@@ -244,12 +244,12 @@ class WindowManager {
   reframe(windowFrame: Rectangle, oldScreenFrame: Rectangle, newScreenFrame: Rectangle) {
     const logger = this._logger;
     const newFrame : Rectangle = { x: 0, y: 0, width: 0, height: 0 };
-    logger.logIndent(3, `Old screen: ${oldScreenFrame.x}, ${oldScreenFrame.y}, ${oldScreenFrame.x + oldScreenFrame.width}, ${oldScreenFrame.y + oldScreenFrame.height}`);
-    logger.logIndent(3, `New screen: ${newScreenFrame.x}, ${newScreenFrame.y}, ${newScreenFrame.x + newScreenFrame.width}, ${newScreenFrame.y + newScreenFrame.height}`);
-    logger.logIndent(3, `Old window: ${windowFrame.x}, ${windowFrame.y}, ${windowFrame.x + windowFrame.width}, ${windowFrame.y + windowFrame.height}`);
+    logger.logIndent(3, `Old screen: left: ${oldScreenFrame.x}, top: ${oldScreenFrame.y}, right: ${oldScreenFrame.x + oldScreenFrame.width}, bottom: ${oldScreenFrame.y + oldScreenFrame.height}`);
+    logger.logIndent(3, `New screen: left: ${newScreenFrame.x}, top: ${newScreenFrame.y}, right: ${newScreenFrame.x + newScreenFrame.width}, bottom: ${newScreenFrame.y + newScreenFrame.height}`);
+    logger.logIndent(3, `Old window: left: ${windowFrame.x}, top: ${windowFrame.y}, right: ${windowFrame.x + windowFrame.width}, bottom: ${windowFrame.y + windowFrame.height}`);
     this._reframe(windowFrame, oldScreenFrame, newScreenFrame, 'x', 'width', newFrame);
     this._reframe(windowFrame, oldScreenFrame, newScreenFrame, 'y', 'height', newFrame);
-    logger.logIndent(3, `New window: ${newFrame.x}, ${newFrame.y}, ${newFrame.x + newFrame.width}, ${newFrame.y + newFrame.height}`);
+    logger.logIndent(3, `New window: left: ${newFrame.x}, top: ${newFrame.y}, right: ${newFrame.x + newFrame.width}, bottom: ${newFrame.y + newFrame.height}`);
     return newFrame;
   }
 
@@ -269,7 +269,7 @@ class WindowManager {
        newWindowFrame = this.reframe(oldWindowFrame, fromScreenFrame, toScreenFrame);
     }
     // @ts-ignore
-    if (_.every(newWindowFrame, (value, key) => looseEquals(value, oldWindowFrame[key], 0.5 ))) {
+    if (_.every(newWindowFrame, (value, key) => looseEquals(value, oldWindowFrame[key], 0.5))) {
       this._logger.logIndent(3, 'New frame is same as old frame, not changing.');
     }
     else {
@@ -375,20 +375,25 @@ windowManager.exclude('net.antelle.keeweb'); // on all spaces of primary screen
 const workDocked = new SpaceBinding('workDocked', [1, 2, 3]);
 windowManager.bindingSet.add(workDocked);
 
-// arrangement is laptop[2], vertical screen[1], horizontal screen[3]
+// screen arrangement is laptop[1], vertical screen[0], horizontal screen[2]
 // but spaces are labeled (5, 6) (1) (2, 3, 4) in the UI, for some reason
 
 //bind('workDocked', 'google-play-music-desktop-player', 0, 0);
 //bind('workDocked', 'com.apple.ActivityMonitor', 0, 0);
+
+// Vertical screen
 workDocked.add(new WindowBinding('*', 0, 0));
 
+// Laptop
 workDocked.add(new WindowBinding('org.mozilla.firefox', 1, 0, WindowBinding.maximize));
 workDocked.add(new WindowBinding('com.tinyspeck.slackmacgap', 1, 1, { x: 0, y: 0, width: 85, height: 85 }));
 workDocked.add(new WindowBinding('com.apple.Notes', 1, 1, { x: 40, y: 10, width: 60, height: 90 }));
 workDocked.add(new WindowBinding('com.apple.iCal', 1, 1, { x: 0, y: 25, width: 70, height: 75 }));
 
+// Horizontal screen
 workDocked.add(new WindowBinding('com.postmanlabs.mac', 2, 0));
 workDocked.add(new WindowBinding('com.TechSmith.Snagit2018', 2, 0));
+workDocked.add(new WindowBinding('org.freeplane.core', 2, 0));
 workDocked.add(new WindowBinding('com.googlecode.iterm2', 2, 1, WindowBinding.maximize));
 workDocked.add(new WindowBinding('com.jetbrains.intellij.ce', 2, 2, WindowBinding.maximize));
 
@@ -403,11 +408,32 @@ undocked.add(new WindowBinding('org.mozilla.firefox', 0, 1, WindowBinding.maximi
 
 undocked.add(new WindowBinding('*', 0, 2));
 
-undocked.add(new WindowBinding('com.googlecode.iterm2', 0, 3, {x: 0, y: 0, width: 90, height: 100}));
+undocked.add(new WindowBinding('com.googlecode.iterm2', 0, 3, {x: 0, y: 0, width: 92, height: 100}));
 
-undocked.add(new WindowBinding('com.jetbrains.intellij.ce', 0, 3, {x: 10, y: 0, width: 90, height: 100}));
+undocked.add(new WindowBinding('com.jetbrains.intellij.ce', 0, 3, {x: 8, y: 0, width: 92, height: 100}));
 
-const homeDocked = new SpaceBinding('homeDocked', []); // TBD
+const homeDocked = new SpaceBinding('homeDocked', [3, 3]);
+
+windowManager.bindingSet.add(homeDocked);
+
+// arrangement is monitor[1], laptop[0]
+// monitor: [IDEA], [iTerm2], [postman, freeplane]
+// laptop: [Firefox], [Slack, Calendar, Notes], [Everything else]
+
+homeDocked.add(new WindowBinding('com.jetbrains.intellij.ce', 1, 0, WindowBinding.maximize));
+
+homeDocked.add(new WindowBinding('com.googlecode.iterm2', 1, 1, WindowBinding.maximize));
+
+homeDocked.add(new WindowBinding('com.postmanlabs.mac', 1, 2));
+homeDocked.add(new WindowBinding('org.freeplane.core', 1, 2));
+
+homeDocked.add(new WindowBinding('org.mozilla.firefox', 0, 2, WindowBinding.maximize));
+
+homeDocked.add(new WindowBinding('com.tinyspeck.slackmacgap', 0, 1));
+homeDocked.add(new WindowBinding('com.apple.Notes', 0, 1));
+homeDocked.add(new WindowBinding('com.apple.iCal', 0, 1));
+
+homeDocked.add(new WindowBinding('*', 0, 0));
 
 function enumerateAppWindows(logger: Logger) {
   logger.log('Retrieving screens');
