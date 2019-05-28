@@ -19,7 +19,9 @@ Symlink or copy `lib/phoenix-config.js` to `~/.config/phoenix/phoenix.js` so Pho
 
 Open `src/phoenix-config.ts` in your preferred text editor.
 
-Search for `// Preferences`. `loggingEnabled` and `loggingIndent` control output to the macOS Console. To view Console output, open the Console app, enter `phoenix` in the search field, press Enter, click `ANY` and select `PROCESS`. Enabling console logging can help debug configuration issues.
+Search for `// Preferences`
+
+`loggingEnabled` and `loggingIndent` control output to the macOS Console. To view Console output, open the Console app, enter `phoenix` in the search field, press Enter, click `ANY` and select `PROCESS`. Enabling console logging can help debug configuration issues.
 
 To customize your personal configuration, edit the Window Bindings section.
 
@@ -42,6 +44,12 @@ Due to limitations of the Spaces API, windows on non-visible Spaces will not be 
 `bindingVariable.add(new WindowBinding('app.id', screenNumber, spaceNumber, WindowBinding.maximize))` automatically resizes the window to fill all available space on the destination screen. It does not put an app in "fullscreen" mode, which actually creates an additional Space. It merely makes the app fill the screen (without overlapping the Dock or menu bar).
 
 To set a custom window size, use an argument of the form `{ x: percent, y: percent, width: percent, height: percent }`. `WindowBinding.maximize` is simply a pre-defined value of `{ x: 0, y: 0, width: 100, height: 100 }`. The origin is the top-left corner of the screen. Positive x is to the right, positive y is towards the bottom. The specified app's window(s) will be resized to the given dimensions. Example: To fill the left half of the screen, use `{ x: 0, y:0, width: 50, height: 100 }`. The percentages will be scaled by the size of the screen, so `100` will always fill all available space.
+
+# Limitations
+
+`phoenix-move-windows` does not currently detect or distinguish between different arrangements of screens if the number and distribution of spaces is identical between them.
+
+`phoenix-move-windows` does not currently distinguish between different windows belonging to the same app. All such windows will be moved to the same screen, and if an explicit window size argument is given, will be moved and resized identically. If this is not desirable, the app can be excluded and managed manually.
 
 # Thanks
 
