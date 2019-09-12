@@ -371,6 +371,7 @@ const moveKey = new Key('z', [ 'ctrl', 'shift', 'alt' ], () => windowManager.mov
 // If appId is '*', all windows except excluded windows will be moved to that screen and space.
 
 windowManager.exclude('net.antelle.keeweb'); // on all spaces of primary screen
+windowManager.exclude('org.keepassx.keepassxc'); // on all spaces of primary screen
 
 const workDocked = new SpaceBinding('workDocked', [1, 2, 3]);
 windowManager.bindingSet.add(workDocked);
@@ -397,19 +398,24 @@ workDocked.add(new WindowBinding('org.freeplane.core', 2, 0));
 workDocked.add(new WindowBinding('com.googlecode.iterm2', 2, 1, WindowBinding.maximize));
 workDocked.add(new WindowBinding('com.jetbrains.intellij.ce', 2, 2, WindowBinding.maximize));
 
+// Laptop alone (1, 2, 3, 4)
+
 const undocked = new SpaceBinding('undocked', [4]);
 windowManager.bindingSet.add(undocked);
 
+// Space 1
 undocked.add(new WindowBinding('com.tinyspeck.slackmacgap', 0, 0));
 undocked.add(new WindowBinding('com.apple.Notes', 0, 0));
 undocked.add(new WindowBinding('com.apple.iCal', 0, 0));
 
+// Space 2
 undocked.add(new WindowBinding('org.mozilla.firefox', 0, 1, WindowBinding.maximize));
 
+// Space 3
 undocked.add(new WindowBinding('*', 0, 2));
 
+// Space 4
 undocked.add(new WindowBinding('com.googlecode.iterm2', 0, 3, {x: 0, y: 0, width: 92, height: 100}));
-
 undocked.add(new WindowBinding('com.jetbrains.intellij.ce', 0, 3, {x: 8, y: 0, width: 92, height: 100}));
 
 const homeDocked = new SpaceBinding('homeDocked', [3, 3]);
@@ -418,7 +424,7 @@ windowManager.bindingSet.add(homeDocked);
 
 // arrangement is monitor[1], laptop[0]
 // monitor: [IDEA], [iTerm2], [postman, freeplane]
-// laptop: [Firefox], [Slack, Calendar, Notes], [Everything else]
+// laptop: [Everything else], [Slack, Calendar, Notes], [Firefox]
 
 homeDocked.add(new WindowBinding('com.jetbrains.intellij.ce', 1, 0, WindowBinding.maximize));
 
@@ -427,13 +433,13 @@ homeDocked.add(new WindowBinding('com.googlecode.iterm2', 1, 1, WindowBinding.ma
 homeDocked.add(new WindowBinding('com.postmanlabs.mac', 1, 2));
 homeDocked.add(new WindowBinding('org.freeplane.core', 1, 2));
 
-homeDocked.add(new WindowBinding('org.mozilla.firefox', 0, 2, WindowBinding.maximize));
+homeDocked.add(new WindowBinding('*', 0, 0));
 
 homeDocked.add(new WindowBinding('com.tinyspeck.slackmacgap', 0, 1));
 homeDocked.add(new WindowBinding('com.apple.Notes', 0, 1));
 homeDocked.add(new WindowBinding('com.apple.iCal', 0, 1));
 
-homeDocked.add(new WindowBinding('*', 0, 0));
+homeDocked.add(new WindowBinding('org.mozilla.firefox', 0, 2, WindowBinding.maximize));
 
 function enumerateAppWindows(logger: Logger) {
   logger.log('Retrieving screens');

@@ -4,16 +4,15 @@
   "description": "",
   "main": "index.js",
   "dependencies": {
-    "@types/lodash": "^4.14.132",
-    "@types/node": "^11.13.11",
-    "lodash": "^4.17.11"
+    "@types/lodash": "^4.14.136",
+    "lodash": "^4.17.15"
   },
   "devDependencies": {
-    "@babel/cli": "^7.4.4",
-    "@babel/core": "^7.4.5",
-    "@babel/plugin-proposal-class-properties": "^7.4.4",
-    "@babel/plugin-proposal-object-rest-spread": "^7.4.4",
-    "@babel/preset-env": "^7.4.5",
+    "@babel/cli": "^7.5.5",
+    "@babel/core": "^7.5.5",
+    "@babel/plugin-proposal-class-properties": "^7.5.5",
+    "@babel/plugin-proposal-object-rest-spread": "^7.5.5",
+    "@babel/preset-env": "^7.5.5",
     "@babel/preset-typescript": "^7.3.3",
     "eslint": "^5.16.0",
     "path": "^0.12.7",
