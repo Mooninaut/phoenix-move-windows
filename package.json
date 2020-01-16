@@ -3,10 +3,7 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-  "dependencies": {
-    "@types/lodash": "^4.14.149",
-    "lodash": "^4.17.15"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@babel/cli": "^7.8.3",
     "@babel/core": "^7.8.3",
@@ -14,9 +11,10 @@
     "@babel/plugin-proposal-object-rest-spread": "^7.8.3",
     "@babel/preset-env": "^7.8.3",
     "@babel/preset-typescript": "^7.8.3",
-    "eslint": "^5.16.0",
+    "@types/lodash": "^4.14.149",
+    "eslint": "^6.8.0",
     "path": "^0.12.7",
-    "ts-loader": "^5.4.5"
+    "ts-loader": "^6.2.1"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
