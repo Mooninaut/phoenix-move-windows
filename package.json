@@ -4,16 +4,16 @@
   "description": "",
   "main": "index.js",
   "dependencies": {
-    "@types/lodash": "^4.14.136",
+    "@types/lodash": "^4.14.149",
     "lodash": "^4.17.15"
   },
   "devDependencies": {
-    "@babel/cli": "^7.5.5",
-    "@babel/core": "^7.5.5",
-    "@babel/plugin-proposal-class-properties": "^7.5.5",
-    "@babel/plugin-proposal-object-rest-spread": "^7.5.5",
-    "@babel/preset-env": "^7.5.5",
-    "@babel/preset-typescript": "^7.3.3",
+    "@babel/cli": "^7.8.3",
+    "@babel/core": "^7.8.3",
+    "@babel/plugin-proposal-class-properties": "^7.8.3",
+    "@babel/plugin-proposal-object-rest-spread": "^7.8.3",
+    "@babel/preset-env": "^7.8.3",
+    "@babel/preset-typescript": "^7.8.3",
     "eslint": "^5.16.0",
     "path": "^0.12.7",
     "ts-loader": "^5.4.5"
@@ -27,5 +27,9 @@
     "build:js": "babel src --out-dir lib --extensions \".ts,.tsx\""
   },
   "author": "Clement Cherlin",
-  "license": "ISC"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/Mooninaut/phoenix-move-windows.git"
+  }
 }
