@@ -3,8 +3,23 @@ const axes = {
   y: { start: 'top', end: 'bottom' }
 };
 
-function looseEquals(arg1: number, arg2: number, epsilon = 0.01) {
-  return Math.abs(arg1 - arg2) <= epsilon;
+function looseEquals(arg1: number, arg2: number, epsilon: number = 0.01) : boolean {
+  if (arg1 === arg2) { return true; }
+  const arg1m = Math.abs(arg1);
+  const arg2m = Math.abs(arg2);
+  const averagem = (arg1m + arg2m / 2.0);
+  const difference = Math.abs(arg1 - arg2);
+  return difference <= (epsilon * averagem);
+  // example: 2.0 vs 2.1
+  // arg1m = 2.0, arg2m = 2.1, averagem = 2.05, difference = 0.1
+  // 0.1 <= 0.01 * 2.05
+  // 0.1 <= 0.0205 is false
+  // 2.0 vs 2.01
+  // arg1m = 2.0, arg2m = 2.01, averagem = 2.005, difference = 0.01
+  // 0.01 <= 0.02005 is true
+  // -2 vs 2
+  // 2, 2, 2, 4
+  // 4 < 0.04 is false
 }
 // Classes
 function centerWindow(screenFrame: Rectangle, windowFrame: Rectangle) : Point {
@@ -88,6 +103,7 @@ class SpaceBinding {
   _windowBindings: {};
   _name: string;
   _screenSpaces: number[];
+  _default: WindowBinding;
   constructor(name: string, space? : number[]) {
     this._windowBindings = {};
     this._screenSpaces = [];
@@ -96,7 +112,7 @@ class SpaceBinding {
       this.setScreenSpaces(space);
     }
   }
-  add(windowBinding) : void {
+  add(windowBinding: WindowBinding) : void {
     this._windowBindings[windowBinding.appId] = windowBinding;
   }
   remove(appId: string) : void {
@@ -126,6 +142,12 @@ class SpaceBinding {
   }
   windowBinding(appId: string) : WindowBinding {
     return this._windowBindings[appId];
+  }
+  get defaultBinding() {
+    return this._default;
+  }
+  set defaultBinding(windowBinding: WindowBinding) {
+    this._default = windowBinding;
   }
 }
 
@@ -179,6 +201,13 @@ interface WindowManagerParameters {
   logger?: Logger;
   snapToEdgeThreshold?: number;
 }
+interface WindowInfo {
+  window: Window;
+//  screen: Screen;
+  space: Space;
+  screenIndex: number;
+  spaceIndex: number;
+}
 class WindowManager {
   _logger: Logger;
   _bindingSet: BindingSet;
@@ -204,17 +233,21 @@ class WindowManager {
     const setName = this._bindingSet.match(currentLayout);
     if (!setName || setName === "default") {
       const screenFrame = Screen.main().visibleFrame();
+      const errorText = `phoenix-move-windows: Could not find layout matching [${_.join(currentLayout, ", ")}].\n${this._bindingSet.getBindingSpaces()}`;
       Modal.build({
-        text: `Phoenix: Could not find layout matching [${_.join(currentLayout, ", ")}].\n${this._bindingSet.getBindingSpaces()}`,
+        text: errorText,
         duration: 3 + 2 * this._bindingSet.count,
         origin: (windowFrame) => centerWindow(screenFrame, windowFrame),
       }).show();
+      throw errorText;
     }
     return setName;
   }
+
   async getActiveSpaceBinding() : Promise<SpaceBinding> {
     return this._bindingSet.binding(await this.getActiveSpaceBindingName());
   }
+
   get bindingSet() : BindingSet {
     return this._bindingSet;
   }
@@ -226,31 +259,31 @@ class WindowManager {
     const windowEnd = windowFrame[axis] + windowFrame[size];
     const windowStartDelta = windowFrame[axis] - oldScreenFrame[axis];
     const windowEndDelta = windowEnd - oldScreenFrameEnd;
-    logger.logIndent(3, `startDelta: ${windowStartDelta}. endDelta: ${windowEndDelta}`);
+    logger.logIndent(2, `startDelta: ${windowStartDelta}. endDelta: ${windowEndDelta}`);
     newFrame[size] = windowFrame[size];    // default: same as current size
     newFrame[axis] = newScreenFrame[axis]; // default: origin (top/left)
 
     if (windowFrame[size] > newScreenFrame[size]) {
       // Window is too large to fit on new screen. Shrink to fit.
-      logger.logIndent(3, `${axis}: Shrink`);
+      logger.logIndent(2, `${axis}: Shrink`);
       newFrame[size] = newScreenFrame[size];
     }
     else if (looseEquals(windowFrame[size], oldScreenFrame[size], this._snapToEdgeThreshold)) {
       // Window was maximized. Keep window maximized
-      logger.logIndent(3, `${axis}: Maximize`);
+      logger.logIndent(2, `${axis}: Maximize`);
       newFrame[size] = newScreenFrame[size];
     }
     else if (windowStartDelta >= this._snapToEdgeThreshold && windowEndDelta <= -this._snapToEdgeThreshold) {
       // Whole window was on old screen.
       // Position so the same relative amount of space is present on both sides before and after.
-      logger.logIndent(3, `${axis}: Position normally`);
+      logger.logIndent(2, `${axis}: Position normally`);
       const scaleZ = (newScreenFrame[size] - windowFrame[size]) / (oldScreenFrame[size] - windowFrame[size]);
       newFrame[axis] = windowStartDelta * scaleZ + newScreenFrame[axis];
     }
     else if (Math.abs(windowStartDelta) <= this._snapToEdgeThreshold
           || windowEnd <= oldScreenFrame[axis]
           || windowStartDelta < 0 && windowEndDelta < 0) {
-      logger.logIndent(3, `${axis}: Flush ${axes[axis].start}`);
+      logger.logIndent(2, `${axis}: Flush ${axes[axis].start}`);
       // Flush start, or off of the screen towards the start.
       // Make flush start (default).
     }
@@ -258,14 +291,14 @@ class WindowManager {
           || windowFrame[axis] >= oldScreenFrameEnd
           || windowStartDelta > 0 && windowEndDelta > 0) {
       // Flush end, or off of the screen towards the end. Make flush end.
-      logger.logIndent(3, `${axis}: Flush ${axes[axis].end}`);
+      logger.logIndent(2, `${axis}: Flush ${axes[axis].end}`);
       newFrame[axis] = newScreenFrameEnd - windowFrame[size];
     }
     else if (windowStartDelta < 0 && windowEndDelta > 0) {
       // Window overflowed old screen on both sides, but will fit on new screen.
       // Center on new screen
       newFrame[axis] = newScreenFrame[axis] + (newScreenFrame[size] - windowFrame[size]) / 2.0;
-      logger.logIndent(3, `${axis}: Overflow`);
+      logger.logIndent(2, `${axis}: Overflow`);
     }
     else {
       Phoenix.log(`Error: Could not determine placement of window on ${axis} axis! Defaulting to origin.`);
@@ -275,12 +308,14 @@ class WindowManager {
   async reframe(windowFrame: Rectangle, oldScreenFrame: Rectangle, newScreenFrame: Rectangle) {
     const logger = this._logger;
     const newFrame : Rectangle = { x: 0, y: 0, width: 0, height: 0 };
-    logger.logIndent(3, `Old screen: left: ${oldScreenFrame.x}, top: ${oldScreenFrame.y}, right: ${oldScreenFrame.x + oldScreenFrame.width}, bottom: ${oldScreenFrame.y + oldScreenFrame.height}`);
-    logger.logIndent(3, `New screen: left: ${newScreenFrame.x}, top: ${newScreenFrame.y}, right: ${newScreenFrame.x + newScreenFrame.width}, bottom: ${newScreenFrame.y + newScreenFrame.height}`);
-    logger.logIndent(3, `Old window: left: ${windowFrame.x}, top: ${windowFrame.y}, right: ${windowFrame.x + windowFrame.width}, bottom: ${windowFrame.y + windowFrame.height}`);
-    await Promise.all([this._reframe(windowFrame, oldScreenFrame, newScreenFrame, 'x', 'width', newFrame),
-    this._reframe(windowFrame, oldScreenFrame, newScreenFrame, 'y', 'height', newFrame)]);
-    logger.logIndent(3, `New window: left: ${newFrame.x}, top: ${newFrame.y}, right: ${newFrame.x + newFrame.width}, bottom: ${newFrame.y + newFrame.height}`);
+    logger.logIndent(2, `Old screen: left: ${oldScreenFrame.x}, top: ${oldScreenFrame.y}, right: ${oldScreenFrame.x + oldScreenFrame.width}, bottom: ${oldScreenFrame.y + oldScreenFrame.height}`);
+    logger.logIndent(2, `New screen: left: ${newScreenFrame.x}, top: ${newScreenFrame.y}, right: ${newScreenFrame.x + newScreenFrame.width}, bottom: ${newScreenFrame.y + newScreenFrame.height}`);
+    logger.logIndent(2, `Old window: left: ${windowFrame.x}, top: ${windowFrame.y}, right: ${windowFrame.x + windowFrame.width}, bottom: ${windowFrame.y + windowFrame.height}`);
+    await Promise.all([
+      this._reframe(windowFrame, oldScreenFrame, newScreenFrame, 'x', 'width', newFrame),
+      this._reframe(windowFrame, oldScreenFrame, newScreenFrame, 'y', 'height', newFrame)
+    ]);
+    logger.logIndent(2, `New window: left: ${newFrame.x}, top: ${newFrame.y}, right: ${newFrame.x + newFrame.width}, bottom: ${newFrame.y + newFrame.height}`);
     return newFrame;
   }
 
@@ -299,105 +334,129 @@ class WindowManager {
     else {
        newWindowFrame = await this.reframe(oldWindowFrame, fromScreenFrame, toScreenFrame);
     }
-    // @ts-ignore
-    if (_.every(newWindowFrame, (value, key) => looseEquals(value, oldWindowFrame[key], 0.5))) {
-      this._logger.logIndent(3, 'New frame is same as old frame, not changing.');
+
+    const appIdentifier = windowHandle.app().bundleIdentifier();
+
+    if (_.every(newWindowFrame, (value, key) => looseEquals(value, oldWindowFrame[key], 0.01))) {
+      this._logger.logIndent(2, `New frame is same as old frame, not changing ${appIdentifier}.`);
       return false;
     }
     else {
       if (frame) {
-        this._logger.logIndent(3, 'Resizing to user-specified dimensions');
+        this._logger.logIndent(2, `Resizing ${appIdentifier} to user-specified dimensions. Old frame: x ${oldWindowFrame.x}, y ${oldWindowFrame.y}, width ${oldWindowFrame.width}, height ${oldWindowFrame.height}. New frame: x ${newWindowFrame.x}, y ${newWindowFrame.y}, width ${newWindowFrame.width}, height ${newWindowFrame.height}.`);
       }
       windowHandle.setFrame(newWindowFrame);
       return true;
     }
   }
 
-  async moveWindow(windowHandle: Window, fromSpace: Space, toSpace: Space) {
+  static async moveWindow(windowHandle: Window, fromSpace: Space, toSpace: Space) {
     fromSpace.removeWindows([windowHandle]);
     toSpace.addWindows([windowHandle]);
   }
 
+  static async launchModal(text: string, duration: number, frame: Rectangle) : Promise<Modal> {
+    const modal = Modal.build({
+      text,
+      duration,
+      origin: windowFrame => centerWindow(frame, windowFrame)
+    });
+    modal.show();
+    return modal;
+  }
+
+  static async buildWindowList(spaces: Space[], screenIndex: number) : Promise<WindowInfo[]> {
+    const results = [];
+    spaces.forEach((space, spaceIndex) => {
+      results.push(
+        ...space.windows().map(
+          (window) => ({window, spaceIndex, screenIndex, space})
+        )
+      );
+    });
+    return results;
+  }
+
+  static getSpaces() : Space[][] {
+    return Screen.all().map(screen => screen.spaces());
+  }
+
+  getWindowBinding(window: Window, spaceBinding: SpaceBinding) : WindowBinding {
+    const appId = window.app().bundleIdentifier();
+    if (this._excludes[appId]) {
+      return null;
+    }
+    return spaceBinding.windowBinding(appId) || spaceBinding.defaultBinding;
+  }
+
   async moveBoundWindows() {
     const currentScreenFrame = Screen.main().visibleFrame();
-    const movingWindows = Modal.build({
-      text: 'Moving windows...',
-      // Should be closed automatically at the end of this method, setting duration just in case it's not
-      duration: 10,
-      origin: windowFrame => centerWindow(currentScreenFrame, windowFrame),
-    });
-    movingWindows.show();
+
     const logger = this._logger;
     logger.log("Retrieving screens.");
-    const screenHandles = Screen.all();
-    //const screenSpaceLayout = getScreenSpaceLayout();
-    //const bindingSetName = getCurrentBindingSetName(bindingSets, screenSpaceLayout);
-    //const bindingSet = bindingSets[bindingSetName].bindings;
-    const screenSpaceLayout = await WindowManager.getScreenSpaceLayout();
-    const spaceBinding = await this.getActiveSpaceBinding();
-    let count = 0;
-    // @ts-ignore
-    logger.log(`Screen space layout: [${_.join(screenSpaceLayout, ', ')}]. Using binding set ${spaceBinding.name}.`);
-    screenHandles.forEach((screenHandle, screen) => {
-      logger.log(`Screen ${screen}`);
-      const spaceHandles = screenHandle.spaces();
-      spaceHandles.forEach((spaceHandle, space) => {
-        logger.logIndent(1, `Space ${space}`);
-        const windowHandles = spaceHandle.windows();
-        windowHandles.forEach((windowHandle, window) => {
-          const appId = windowHandle.app().bundleIdentifier();
-          logger.logIndent(2, `Window ${window}: "${appId}", "${windowHandle.title()}"`);
-          const binding = spaceBinding.windowBinding(appId) || (this._excludes[appId] ? null : spaceBinding.windowBinding('*'));
-          if (binding) {
-            if (binding.screen !== screen || binding.space !== space) {
-              const newScreenHandle = screenHandles[binding.screen];
-              if (!newScreenHandle) {
-                logger.logIndent(3, `Destination screen ${binding.screen} does not exist, not moving.`);
-                return;
-              }
-              const newSpaceHandle = newScreenHandle.spaces()[binding.space];
-              if (!newSpaceHandle) {
-                logger.logIndent(3, `Destination space ${binding.space} on screen ${binding.screen} does not exist, not moving.`);
-                return;
-              }
-              logger.logIndent(3, `Moving from screen ${screen}, space ${space} to screen ${binding.screen}, space ${binding.space}`);
-              count += 1;
-              this.moveWindow(
-                windowHandle,
-                spaceHandles[space],
-                newSpaceHandle
-              );
-              this.resizeWindow(
-                windowHandle,
-                screenHandles[screen],
-                newScreenHandle,
-                binding.frame
-              );
-            }
-            else if (binding.frame) {
-              if (this.resizeWindow(
-                windowHandle,
-                screenHandles[screen],
-                screenHandles[screen],
-                binding.frame
-              )) {
-                count += 1;
-              }
-            }
-          }
-        });
-      });
-    });
 
-    //for (const screen of Screen.all()) {
-    const doneMovingWindows = Modal.build({
-        text: `Moved ${count} window${count === 1 ? '' : 's'}`,
-        duration: _.max([2, _.min([5, count/2.0])]),
-        origin: windowFrame => centerWindow(currentScreenFrame, windowFrame),
-      });
-    //}
+    const screenSpaceLayout = await WindowManager.getScreenSpaceLayout();
+    let spaceBinding: SpaceBinding;
+    try {
+      spaceBinding = await this.getActiveSpaceBinding();
+    }
+    catch (e) {
+      logger.log(e);
+      return;
+    }
+    const movingWindows = await WindowManager.launchModal('Moving windows...',
+      // Should be closed automatically at the end of moveBoundWindows, setting duration just in case it's not
+      10,
+      currentScreenFrame
+    );
+    const spaces = WindowManager.getSpaces();
+    const screens = Screen.all();
+
+    logger.log(`Screen space layout: [${_.join(screenSpaceLayout, ', ')}]. Using binding set ${spaceBinding.name}.`);
+    const windowInfos = _.flatten(await Promise.all(spaces.map(WindowManager.buildWindowList)));
+    const count = _.sum(await Promise.all(windowInfos.map(async (windowInfo) => {
+      const binding = this.getWindowBinding(windowInfo.window, spaceBinding);
+      if (binding) {
+        const oldScreen = screens[windowInfo.screenIndex];
+        if (binding.screen !== windowInfo.screenIndex || binding.space !== windowInfo.spaceIndex) {
+          const newScreen = screens[binding.screen];
+          const newSpace = spaces[binding.screen][binding.space];
+          if (!newScreen || !newSpace) {
+            logger.logIndent(1, `Destination screen or space does not exist for binding ${binding.appId}.`);
+            return 0;
+          }
+          logger.logIndent(1, `Moving app "${windowInfo.window.app().name()}" window "${windowInfo.window.title()}" from screen ${windowInfo.screenIndex}, space ${windowInfo.spaceIndex} to screen ${binding.screen}, space ${binding.space}`);
+          WindowManager.moveWindow(windowInfo.window, windowInfo.space, newSpace);
+          this.resizeWindow(
+            windowInfo.window,
+            oldScreen,
+            newScreen,
+            binding.frame
+          );
+          return 1;
+        }
+        else if (binding.frame) {
+          this.resizeWindow(windowInfo.window, oldScreen, oldScreen, binding.frame).then(
+            (success) => {
+              if (success) {
+                return 1;
+              }
+            }
+          );
+        }
+      }
+      return 0;
+    })));
+
     movingWindows.close();
-    doneMovingWindows.show();
+
+    WindowManager.launchModal(
+        `Moved ${count} window${count === 1 ? '' : 's'}`,
+        // display for no less than 2 but no more than 6 seconds, increasing by 0.5 seconds per window moved
+        _.max([2, _.min([6, count/2.0])]),
+        currentScreenFrame
+    );
+    //}
   }
 }
 // const _ = require('lodash');
@@ -407,7 +466,7 @@ class WindowManager {
 
 const loggingEnabled = true;
 const loggingIndent = 4; // spaces
-const snapToEdgeThreshold = 5; // logical pixels
+const snapToEdgeThreshold = 0.01; // fractional difference
 
 // Key bindings
 const logger = new Logger(loggingEnabled, loggingIndent);
@@ -424,7 +483,7 @@ const moveKey = new Key('z', [ 'ctrl', 'shift', 'alt' ], () => windowManager.mov
 // new WindowBinding(appId, screen, space, [frame]);
 // frame is a Rectangle with all values as percentages. The values will be scaled to the dimensions of the destination screen.
 // WindowBinding.maximize is short for { x: 0, y:0, width: 100, height: 100 }
-// If appId is '*', all windows except excluded windows will be moved to that screen and space.
+// If the default binding is set, all other windows will be moved to that screen
 
 windowManager.exclude('net.antelle.keeweb'); // on all spaces of primary screen
 windowManager.exclude('org.keepassx.keepassxc'); // on all spaces of primary screen
@@ -442,7 +501,7 @@ const ical = { x: 0, y: 25, width: 70, height: 75 };
 //bind('workDocked', 'com.apple.ActivityMonitor', 0, 0);
 
 // Vertical screen
-workDocked.add(new WindowBinding('*', 0, 0));
+workDocked.defaultBinding = new WindowBinding('*', 0, 0);
 
 // Laptop
 workDocked.add(new WindowBinding('org.mozilla.firefox', 1, 0, WindowBinding.maximize));
@@ -472,7 +531,7 @@ undocked.add(new WindowBinding('com.apple.iCal', 0, 0));
 undocked.add(new WindowBinding('org.mozilla.firefox', 0, 1, WindowBinding.maximize));
 
 // Space 3
-undocked.add(new WindowBinding('*', 0, 2));
+undocked.defaultBinding = new WindowBinding('*', 0, 2);
 
 // Space 4
 undocked.add(new WindowBinding('com.googlecode.iterm2', 0, 3, {x: 0, y: 0, width: 92, height: 100}));
@@ -482,21 +541,21 @@ const homeDocked = new SpaceBinding('homeDocked', [2, 3]);
 
 windowManager.bindingSet.add(homeDocked);
 
-// arrangement is monitor[1], laptop[0]
-// monitor: [IDEA], [iTerm2], [Firefox]
-// laptop: [Everything else], [Slack, Calendar, Notes],
+// arrangement is laptop[0], monitor[1]
+// monitor: [Everything else] [iTerm2] [IDEA]
+// laptop: [Slack, Calendar, Notes] [Firefox]
 
-homeDocked.add(new WindowBinding('com.jetbrains.intellij.ce', 1, 0, WindowBinding.maximize));
+homeDocked.add(new WindowBinding('com.jetbrains.intellij.ce', 1, 2, WindowBinding.maximize));
 
 homeDocked.add(new WindowBinding('com.googlecode.iterm2', 1, 1, WindowBinding.maximize));
 
-homeDocked.add(new WindowBinding('org.mozilla.firefox', 1, 2, WindowBinding.maximize));
+homeDocked.add(new WindowBinding('org.mozilla.firefox', 0, 1, WindowBinding.maximize));
 
-homeDocked.add(new WindowBinding('*', 0, 0));
+homeDocked.defaultBinding = new WindowBinding('*', 1, 0);
 
-homeDocked.add(new WindowBinding('com.tinyspeck.slackmacgap', 0, 1, slack));
-homeDocked.add(new WindowBinding('com.apple.Notes', 0, 1, notes));
-homeDocked.add(new WindowBinding('com.apple.iCal', 0, 1, ical));
+homeDocked.add(new WindowBinding('com.tinyspeck.slackmacgap', 0, 0, slack));
+homeDocked.add(new WindowBinding('com.apple.Notes', 0, 0, notes));
+homeDocked.add(new WindowBinding('com.apple.iCal', 0, 0, ical));
 
 
 function enumerateAppWindows(logger: Logger) {
@@ -516,14 +575,19 @@ function enumerateAppWindows(logger: Logger) {
       logger.logIndent(1, `appId "${appHandle.bundleIdentifier()}" app "${appHandle.name()}" `);
       windows.forEach((windowHandle) => {
         const screenHandle = windowHandle.screen();
-        const screenId = screenHandle ? screenHandle.identifier() : 'null';
-        const windowFrame = windowHandle.frame();
-        const screenFrame = screenHandle.flippedVisibleFrame();
-        const x = 100 * (windowFrame.x - screenFrame.x) / screenFrame.width;
-        const y = 100 * (windowFrame.y - screenFrame.y) / screenFrame.height;
-        const width = 100 * windowFrame.width / screenFrame.width;
-        const height = 100 * windowFrame.height / screenFrame.height;
-        logger.logIndent(2, `screen: ${screens[screenId]}, window: "${windowHandle.title()}" x: ${x}, y: ${y}, width: ${width}, height: ${height}`);
+        if (screenHandle) {
+          const screenId = screenHandle.identifier();
+          const windowFrame = windowHandle.frame();
+          const screenFrame = screenHandle.flippedVisibleFrame();
+          const x = 100 * (windowFrame.x - screenFrame.x) / screenFrame.width;
+          const y = 100 * (windowFrame.y - screenFrame.y) / screenFrame.height;
+          const width = 100 * windowFrame.width / screenFrame.width;
+          const height = 100 * windowFrame.height / screenFrame.height;
+          logger.logIndent(2, `screen: ${screens[screenId]}, window: "${windowHandle.title()}" x: ${x}, y: ${y}, width: ${width}, height: ${height}.`);
+        }
+        else {
+          logger.logIndent(2, `windowHandle "${windowHandle.title()}" has no screenHandle.`);
+        }
       });
     }
   });

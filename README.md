@@ -13,6 +13,8 @@ Execute `npm run type-check` to check for TypeScript errors.
 
 Execute `npm run build` to build `lib/phoenix-config.js`.
 
+Execute `mkdir -p "$HOME/.config/phoenix"` to create the Phoenix config directory.
+
 Symlink or copy `lib/phoenix-config.js` to `~/.config/phoenix/phoenix.js` so Phoenix can find the generated configuration file.
 
 ## Configuration
@@ -31,9 +33,9 @@ Due to limitations of the Spaces API, windows on non-visible Spaces will not be 
 
 `windowManager.exclude('app.id')` will prevent `moveBoundWindows` from moving any window belonging to the specified app. I recommend excluding any app that is assigned to All Desktops.
 
-`phoenix-move-windows` uses the current arrangement of your screens and spaces to determine which set of bindings to choose from. Disconnecting or connecting external monitors changes the arrangement, allowing a single hotkey to automatically perform the correct arrangement. You may find that macOS moves spaces between monitors. You will have to manually correct that before pressing the hotkey.
+`phoenix-move-windows` uses the current arrangement of your screens and spaces to determine which set of bindings to choose from. Disconnecting or connecting external monitors changes the arrangement, allowing a single hotkey to automatically perform the correct arrangement. You may find that macOS moves spaces between monitors, changing the number of spaces on the monitors. You will have to manually correct that before pressing the hotkey for the correct arrangement to be detected.
 
-`const bindingVariable = new SpaceBinding('bindingName', [x, y, z])` creates a new set of bindings. The `[x, y, z]` parameter specifies the logical (not physical) arrangement of screens and spaces to match on. Example: `[1, 2, 3]` will match if your primary screen has 1 space, your second screen has 2 spaces, and your third screen has 3 spaces. If you use multiple monitors but not additional spaces, `[1, 1]` will match 2 monitors with 1 space each. `[4]` will match 1 monitor with 4 spaces.
+`const bindingVariable = new SpaceBinding('bindingName', [x, y, z])` creates a new set of bindings. The `[x, y, z]` parameter specifies the logical (not physical) arrangement of screens and spaces to match on. Example: `[1, 2, 3]` will match if your primary screen has 1 space, your second screen has 2 spaces, and your third screen has 3 spaces. If you use multiple monitors but not multiple spaces per monitor, `[1, 1]` will match 2 monitors with 1 space each. `[4]` will match 1 monitor with 4 spaces. If no arrangements match, `moveBoundWindows` will tell you what the current arrangement is, and display all configured arrangements.
 
 `windowManager.bindingSet.add(bindingVariable)` registers and activates the SpaceBinding.
 
