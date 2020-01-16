@@ -62,15 +62,11 @@ class Logger {
 }
 
 /*
-Class A represents a single binding, of a window to a screen and space, with optional arrangement properties (maximize, location)
-Class B represents an arrangement of screens and spaces and the bindings that go with that arrangement
-Class C represents the full set of all arrangements
-
-A = WindowBinding
-B = SpaceBinding
-C = BindingSet
-
+Class WindowBinding represents a single binding, of a window to a screen and space, with optional arrangement properties (maximize, location)
+Class SpaceBinding represents an arrangement of screens and spaces and the bindings that go with that arrangement
+Class BindingSet represents the full set of all arrangements
 */
+
 /**
  * Data class
  * appId: String
@@ -459,8 +455,6 @@ class WindowManager {
     //}
   }
 }
-// const _ = require('lodash');
-
 
 // Preferences
 
