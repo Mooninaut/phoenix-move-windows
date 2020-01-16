@@ -84,8 +84,8 @@ class WindowBinding {
   space: number;
   frame: Rectangle;
   constructor(appId: string, screen = 0, space = 0, frame?: Rectangle) {
-    if (appId.constructor.name !== 'String' || appId === '') {
-      throw new Error('appId must be a non-empty string');
+    if (appId === null || appId === undefined || appId.constructor.name !== 'String' || appId === '') {
+      throw 'appId must be a non-empty string';
     }
     this.appId = appId;
     this.screen = screen;
@@ -481,9 +481,11 @@ const moveKey = new Key('z', [ 'ctrl', 'shift', 'alt' ], () => windowManager.mov
 // bindingSet 'default' always exists and will be used if no other set matches.
 // new SpaceBinding(bindingName, [number_of_spaces_on_screen_0, number_of_spaces_on_screen_1, ...]);
 // new WindowBinding(appId, screen, space, [frame]);
-// frame is a Rectangle with all values as percentages. The values will be scaled to the dimensions of the destination screen.
+// frame is a Rectangle with all values as percentages. The values will be
+//   scaled to the dimensions of the destination screen.
 // WindowBinding.maximize is short for { x: 0, y:0, width: 100, height: 100 }
-// If the default binding is set, all other windows will be moved to that screen
+// If the default binding for a bindingSet is set, all windows that don't match another binding
+//   will be moved to that screen
 
 windowManager.exclude('net.antelle.keeweb'); // on all spaces of primary screen
 windowManager.exclude('org.keepassx.keepassxc'); // on all spaces of primary screen
