@@ -1,5 +1,5 @@
 # Phoenix Move Windows
-Clement Cherlin's personal [Phoenix](https://github.com/kasper/phoenix) configuration script, written in TypeScript. Requires Phoenix to use.
+A [Phoenix](https://github.com/kasper/phoenix) window manager configuration script, written in TypeScript. Requires Phoenix to use.
 
 macOS has an irritating habit of randomly rearranging Spaces and windows when connecting or disconnecting external monitors.
 
