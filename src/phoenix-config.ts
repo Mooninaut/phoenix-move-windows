@@ -111,6 +111,9 @@ class SpaceBinding {
   add(windowBinding: WindowBinding) : void {
     this._windowBindings[windowBinding.appId] = windowBinding;
   }
+  addNew(appId: string, screen = 0, space = 0, frame?: Rectangle) {
+    this.add(new WindowBinding(appId, screen, space, frame));
+  }
   remove(appId: string) : void {
     delete this._windowBindings[appId];
   }
@@ -351,12 +354,14 @@ class WindowManager {
     toSpace.addWindows([windowHandle]);
   }
 
-  static async launchModal(text: string, duration: number, frame: Rectangle) : Promise<Modal> {
+  static launchModal(text: string, duration: number, frame: Rectangle) : Modal {
+    logger.log(`Launching modal: ${text}`);
     const modal = Modal.build({
       text,
       duration,
       origin: windowFrame => centerWindow(frame, windowFrame)
     });
+    modal.animationDuration = 0.1; // 100ms
     modal.show();
     return modal;
   }
@@ -386,10 +391,19 @@ class WindowManager {
   }
 
   async moveBoundWindows() {
-    const currentScreenFrame = Screen.main().visibleFrame();
-
     const logger = this._logger;
     logger.log("Retrieving screens.");
+
+    const currentScreenFrame = Screen.main().visibleFrame();
+
+    const movingWindows = WindowManager.launchModal('Moving windows...',
+      // Should be closed automatically at the end of moveBoundWindows, setting duration just in case it's not
+      10,
+      currentScreenFrame
+    );
+
+    // 100ms wait required to allow movingWindows modal time to appear
+    await later(100);
 
     const screenSpaceLayout = await WindowManager.getScreenSpaceLayout();
     let spaceBinding: SpaceBinding;
@@ -400,11 +414,7 @@ class WindowManager {
       logger.log(e);
       return;
     }
-    const movingWindows = await WindowManager.launchModal('Moving windows...',
-      // Should be closed automatically at the end of moveBoundWindows, setting duration just in case it's not
-      10,
-      currentScreenFrame
-    );
+
     const spaces = WindowManager.getSpaces();
     const screens = Screen.all();
 
@@ -432,13 +442,7 @@ class WindowManager {
           return 1;
         }
         else if (binding.frame) {
-          this.resizeWindow(windowInfo.window, oldScreen, oldScreen, binding.frame).then(
-            (success) => {
-              if (success) {
-                return 1;
-              }
-            }
-          );
+          return (await this.resizeWindow(windowInfo.window, oldScreen, oldScreen, binding.frame)) ? 1 : 0;
         }
       }
       return 0;
@@ -446,113 +450,17 @@ class WindowManager {
 
     movingWindows.close();
 
+    // Give movingWindows close animation time to run
+    await later(100);
+
     WindowManager.launchModal(
-        `Moved ${count} window${count === 1 ? '' : 's'}`,
-        // display for no less than 2 but no more than 6 seconds, increasing by 0.5 seconds per window moved
-        _.max([2, _.min([6, count/2.0])]),
-        currentScreenFrame
+      `Moved ${count} window${count === 1 ? '' : 's'}`,
+      // display for no less than 2 but no more than 6 seconds, increasing by 0.5 seconds per window moved
+      _.max([2, _.min([6, count/2.0])]),
+      currentScreenFrame
     );
-    //}
   }
 }
-
-// Preferences
-
-const loggingEnabled = true;
-const loggingIndent = 4; // spaces
-const snapToEdgeThreshold = 0.01; // fractional difference
-
-// Key bindings
-const logger = new Logger(loggingEnabled, loggingIndent);
-const windowManager = new WindowManager({logger, snapToEdgeThreshold});
-
-const enumerateKey = new Key('x', [ 'ctrl', 'shift', 'alt' ], () => enumerateAppWindows(logger));
-const moveKey = new Key('z', [ 'ctrl', 'shift', 'alt' ], () => windowManager.moveBoundWindows());
-
-// Window bindings
-
-// If a binding exists for a screen or space that does not exist, the window will not be moved.
-// bindingSet 'default' always exists and will be used if no other set matches.
-// new SpaceBinding(bindingName, [number_of_spaces_on_screen_0, number_of_spaces_on_screen_1, ...]);
-// new WindowBinding(appId, screen, space, [frame]);
-// frame is a Rectangle with all values as percentages. The values will be
-//   scaled to the dimensions of the destination screen.
-// WindowBinding.maximize is short for { x: 0, y:0, width: 100, height: 100 }
-// If the default binding for a bindingSet is set, all windows that don't match another binding
-//   will be moved to that screen
-
-windowManager.exclude('net.antelle.keeweb'); // on all spaces of primary screen
-windowManager.exclude('org.keepassx.keepassxc'); // on all spaces of primary screen
-
-const workDocked = new SpaceBinding('workDocked', [1, 2, 3]);
-windowManager.bindingSet.add(workDocked);
-
-// screen arrangement is laptop[1], vertical screen[0], horizontal screen[2]
-// but spaces are labeled (5, 6) (1) (2, 3, 4) in the UI, for some reason
-
-const slack = { x: 0, y: 0, width: 85, height: 85 };
-const notes = { x: 40, y: 10, width: 60, height: 90 };
-const ical = { x: 0, y: 25, width: 70, height: 75 };
-//bind('workDocked', 'google-play-music-desktop-player', 0, 0);
-//bind('workDocked', 'com.apple.ActivityMonitor', 0, 0);
-
-// Vertical screen
-workDocked.defaultBinding = new WindowBinding('*', 0, 0);
-
-// Laptop
-workDocked.add(new WindowBinding('org.mozilla.firefox', 1, 0, WindowBinding.maximize));
-
-workDocked.add(new WindowBinding('com.tinyspeck.slackmacgap', 1, 1, slack));
-workDocked.add(new WindowBinding('com.apple.Notes', 1, 1, notes));
-workDocked.add(new WindowBinding('com.apple.iCal', 1, 1, ical));
-
-// Horizontal screen
-workDocked.add(new WindowBinding('com.postmanlabs.mac', 2, 0));
-workDocked.add(new WindowBinding('com.TechSmith.Snagit2018', 2, 0));
-workDocked.add(new WindowBinding('org.freeplane.core', 2, 0));
-workDocked.add(new WindowBinding('com.googlecode.iterm2', 2, 1, WindowBinding.maximize));
-workDocked.add(new WindowBinding('com.jetbrains.intellij.ce', 2, 2, WindowBinding.maximize));
-
-// Laptop alone (1, 2, 3, 4)
-
-const undocked = new SpaceBinding('undocked', [4]);
-windowManager.bindingSet.add(undocked);
-
-// Space 1
-undocked.add(new WindowBinding('com.tinyspeck.slackmacgap', 0, 0));
-undocked.add(new WindowBinding('com.apple.Notes', 0, 0));
-undocked.add(new WindowBinding('com.apple.iCal', 0, 0));
-
-// Space 2
-undocked.add(new WindowBinding('org.mozilla.firefox', 0, 1, WindowBinding.maximize));
-
-// Space 3
-undocked.defaultBinding = new WindowBinding('*', 0, 2);
-
-// Space 4
-undocked.add(new WindowBinding('com.googlecode.iterm2', 0, 3, {x: 0, y: 0, width: 92, height: 100}));
-undocked.add(new WindowBinding('com.jetbrains.intellij.ce', 0, 3, {x: 8, y: 0, width: 92, height: 100}));
-
-const homeDocked = new SpaceBinding('homeDocked', [2, 3]);
-
-windowManager.bindingSet.add(homeDocked);
-
-// arrangement is laptop[0], monitor[1]
-// monitor: [Everything else] [iTerm2] [IDEA]
-// laptop: [Slack, Calendar, Notes] [Firefox]
-
-homeDocked.add(new WindowBinding('com.jetbrains.intellij.ce', 1, 2, WindowBinding.maximize));
-
-homeDocked.add(new WindowBinding('com.googlecode.iterm2', 1, 1, WindowBinding.maximize));
-
-homeDocked.add(new WindowBinding('org.mozilla.firefox', 0, 1, WindowBinding.maximize));
-
-homeDocked.defaultBinding = new WindowBinding('*', 1, 0);
-
-homeDocked.add(new WindowBinding('com.tinyspeck.slackmacgap', 0, 0, slack));
-homeDocked.add(new WindowBinding('com.apple.Notes', 0, 0, notes));
-homeDocked.add(new WindowBinding('com.apple.iCal', 0, 0, ical));
-
 
 function enumerateAppWindows(logger: Logger) {
   logger.log('Retrieving screens');
@@ -588,3 +496,134 @@ function enumerateAppWindows(logger: Logger) {
     }
   });
 }
+
+function later<T>(milliseconds: number, value?: T) : Promise<T> {
+  return new Promise(resolve => setTimeout(resolve.bind(null, value), milliseconds));
+}
+
+// Preferences
+
+const loggingEnabled = true;
+const loggingIndent = 4; // spaces
+const snapToEdgeThreshold = 0.01; // fractional difference
+
+// Initialization
+
+const logger = new Logger(loggingEnabled, loggingIndent);
+const windowManager = new WindowManager({logger, snapToEdgeThreshold});
+
+// Key bindings
+
+const enumerateKey = new Key('x', [ 'ctrl', 'shift', 'alt' ], () => enumerateAppWindows(logger));
+const moveKey = new Key('z', [ 'ctrl', 'shift', 'alt' ], windowManager.moveBoundWindows.bind(windowManager));
+
+// Window bindings
+
+// If a binding exists for a screen or space that does not exist, the window will not be moved.
+// bindingSet 'default' always exists and will be used if no other set matches.
+// new SpaceBinding(bindingName, [number_of_spaces_on_screen_0, number_of_spaces_on_screen_1, ...]);
+// new WindowBinding(appId, screen, space, [frame]);
+// frame is a Rectangle with all values as percentages. The values will be
+//   scaled to the dimensions of the destination screen.
+// WindowBinding.maximize is short for { x: 0, y:0, width: 100, height: 100 }
+// If the default binding for a bindingSet is set, all windows that don't match another binding
+//   will be moved to that screen
+
+windowManager.exclude('net.antelle.keeweb'); // on all spaces of primary screen
+windowManager.exclude('org.keepassx.keepassxc'); // on all spaces of primary screen
+
+const workDocked = new SpaceBinding('workDocked', [1, 2, 3]);
+windowManager.bindingSet.add(workDocked);
+
+// screen arrangement is laptop[1], vertical screen[0], horizontal screen[2]
+// but spaces are labeled (5, 6) (1) (2, 3, 4) in the UI, for some reason
+
+const slack: Rectangle = { x: 0, y: 0, width: 85, height: 85 };
+const notes: Rectangle = { x: 40, y: 10, width: 60, height: 90 };
+const ical: Rectangle = { x: 0, y: 25, width: 70, height: 75 };
+//bind('workDocked', 'google-play-music-desktop-player', 0, 0);
+//bind('workDocked', 'com.apple.ActivityMonitor', 0, 0);
+
+// Vertical screen
+workDocked.defaultBinding = new WindowBinding('*', 0, 0);
+
+// Laptop
+workDocked.addNew('org.mozilla.firefox', 1, 0, WindowBinding.maximize);
+
+workDocked.addNew('com.tinyspeck.slackmacgap', 1, 1, slack);
+workDocked.addNew('com.apple.Notes', 1, 1, notes);
+workDocked.addNew('com.apple.iCal', 1, 1, ical);
+
+// Horizontal screen
+workDocked.addNew('com.postmanlabs.mac', 2, 0);
+workDocked.addNew('com.TechSmith.Snagit2018', 2, 0);
+workDocked.addNew('org.freeplane.core', 2, 0);
+
+workDocked.addNew('com.googlecode.iterm2', 2, 1, WindowBinding.maximize);
+
+
+////// Tall IntelliJ for Java development //////
+
+// laptop[2], vertical screen[2], horizontal screen[2]
+
+const workJava = new SpaceBinding('workJava', [2, 2, 2]);
+windowManager.bindingSet.add(workJava);
+
+// Vertical screen
+workJava.defaultBinding = new WindowBinding('*', 0, 0);
+
+workJava.addNew('com.jetbrains.intellij.ce', 0, 1, WindowBinding.maximize);
+
+// Laptop
+workJava.addNew('org.mozilla.firefox', 1, 0, WindowBinding.maximize);
+
+workJava.addNew('com.tinyspeck.slackmacgap', 1, 1, slack);
+workJava.addNew('com.apple.Notes', 1, 1, notes);
+workJava.addNew('com.apple.iCal', 1, 1, ical);
+
+// Horizontal screen
+workJava.addNew('com.postmanlabs.mac', 2, 0);
+workJava.addNew('com.TechSmith.Snagit2018', 2, 0);
+workJava.addNew('org.freeplane.core', 2, 0);
+
+workJava.addNew('com.googlecode.iterm2', 2, 1, WindowBinding.maximize);
+
+////// Laptop alone (1, 2, 3, 4) //////
+
+const undocked = new SpaceBinding('undocked', [4]);
+windowManager.bindingSet.add(undocked);
+
+// Space 1
+undocked.addNew('com.tinyspeck.slackmacgap', 0, 0, slack);
+undocked.addNew('com.apple.Notes', 0, 0, notes);
+undocked.addNew('com.apple.iCal', 0, 0, ical);
+
+// Space 2
+undocked.addNew('org.mozilla.firefox', 0, 1, WindowBinding.maximize);
+
+// Space 3
+undocked.defaultBinding = new WindowBinding('*', 0, 2);
+
+// Space 4
+undocked.addNew('com.googlecode.iterm2', 0, 3, {x: 0, y: 0, width: 92, height: 100});
+undocked.addNew('com.jetbrains.intellij.ce', 0, 3, {x: 8, y: 0, width: 92, height: 100});
+
+const homeDocked = new SpaceBinding('homeDocked', [2, 3]);
+
+windowManager.bindingSet.add(homeDocked);
+
+// arrangement is laptop[0], monitor[1]
+// monitor: [Everything else] [iTerm2] [IDEA]
+// laptop: [Slack, Calendar, Notes] [Firefox]
+
+homeDocked.addNew('com.jetbrains.intellij.ce', 1, 2, WindowBinding.maximize);
+
+homeDocked.addNew('com.googlecode.iterm2', 1, 1, WindowBinding.maximize);
+
+homeDocked.addNew('org.mozilla.firefox', 0, 1, WindowBinding.maximize);
+
+homeDocked.defaultBinding = new WindowBinding('*', 1, 0);
+
+homeDocked.addNew('com.tinyspeck.slackmacgap', 0, 0, slack);
+homeDocked.addNew('com.apple.Notes', 0, 0, notes);
+homeDocked.addNew('com.apple.iCal', 0, 0, ical);

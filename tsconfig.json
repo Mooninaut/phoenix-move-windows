@@ -4,7 +4,7 @@
     "moduleResolution": "node",
     "baseUrl": "src",
     "outDir": "out",
-    "target": "es6",
+    "target": "ES2018",
     "strict": false,
     "typeRoots": [
       "node_modules/@types",
