@@ -235,7 +235,7 @@ class WindowManager {
       const errorText = `phoenix-move-windows: Could not find layout matching [${_.join(currentLayout, ", ")}].\n${this._bindingSet.getBindingSpaces()}`;
       Modal.build({
         text: errorText,
-        duration: 3 + 2 * this._bindingSet.count,
+        duration: _.min([2 + 2 * this._bindingSet.count, 8]),
         origin: (windowFrame) => centerWindow(screenFrame, windowFrame),
       }).show();
       throw errorText;
@@ -396,15 +396,6 @@ class WindowManager {
 
     const currentScreenFrame = Screen.main().visibleFrame();
 
-    const movingWindows = WindowManager.launchModal('Moving windows...',
-      // Should be closed automatically at the end of moveBoundWindows, setting duration just in case it's not
-      10,
-      currentScreenFrame
-    );
-
-    // 100ms wait required to allow movingWindows modal time to appear
-    await later(100);
-
     const screenSpaceLayout = await WindowManager.getScreenSpaceLayout();
     let spaceBinding: SpaceBinding;
     try {
@@ -415,6 +406,11 @@ class WindowManager {
       return;
     }
 
+    // 100ms wait required to allow movingWindows modal time to appear
+    const movingWindows = await later(100, WindowManager.launchModal('Moving windows...',
+      10, // Should be closed automatically at the end of moveBoundWindows, setting duration just in case it's not
+      currentScreenFrame
+      ));
     const spaces = WindowManager.getSpaces();
     const screens = Screen.all();
 
@@ -448,10 +444,8 @@ class WindowManager {
       return 0;
     })));
 
-    movingWindows.close();
-
     // Give movingWindows close animation time to run
-    await later(100);
+    await later(100, movingWindows.close());
 
     WindowManager.launchModal(
       `Moved ${count} window${count === 1 ? '' : 's'}`,
@@ -535,8 +529,9 @@ windowManager.exclude('org.keepassx.keepassxc'); // on all spaces of primary scr
 const workDocked = new SpaceBinding('workDocked', [1, 2, 3]);
 windowManager.bindingSet.add(workDocked);
 
-// screen arrangement is laptop[1], vertical screen[0], horizontal screen[2]
-// but spaces are labeled (5, 6) (1) (2, 3, 4) in the UI, for some reason
+const workLaptop = 1;
+const workCenter = 0;
+const workRight = 2;
 
 const slack: Rectangle = { x: 0, y: 0, width: 85, height: 85 };
 const notes: Rectangle = { x: 40, y: 10, width: 60, height: 90 };
@@ -544,22 +539,24 @@ const ical: Rectangle = { x: 0, y: 25, width: 70, height: 75 };
 //bind('workDocked', 'google-play-music-desktop-player', 0, 0);
 //bind('workDocked', 'com.apple.ActivityMonitor', 0, 0);
 
-// Vertical screen
-workDocked.defaultBinding = new WindowBinding('*', 0, 0);
 
 // Laptop
-workDocked.addNew('org.mozilla.firefox', 1, 0, WindowBinding.maximize);
+workDocked.addNew('org.mozilla.firefox', workLaptop, 0, WindowBinding.maximize);
 
-workDocked.addNew('com.tinyspeck.slackmacgap', 1, 1, slack);
-workDocked.addNew('com.apple.Notes', 1, 1, notes);
-workDocked.addNew('com.apple.iCal', 1, 1, ical);
+workDocked.addNew('com.tinyspeck.slackmacgap', workLaptop, 1, slack);
+workDocked.addNew('com.apple.Notes', workLaptop, 1, notes);
+workDocked.addNew('com.apple.iCal', workLaptop, 1, ical);
 
-// Horizontal screen
-workDocked.addNew('com.postmanlabs.mac', 2, 0);
-workDocked.addNew('com.TechSmith.Snagit2018', 2, 0);
-workDocked.addNew('org.freeplane.core', 2, 0);
+// Center screen
+workDocked.defaultBinding = new WindowBinding('*', workCenter, 0);
 
-workDocked.addNew('com.googlecode.iterm2', 2, 1, WindowBinding.maximize);
+
+// Right screen
+workDocked.addNew('com.postmanlabs.mac', workRight, 0);
+workDocked.addNew('com.TechSmith.Snagit2018', workRight, 0);
+workDocked.addNew('org.freeplane.core', workRight, 0);
+
+workDocked.addNew('com.googlecode.iterm2', workRight, 1, WindowBinding.maximize);
 
 
 ////// Tall IntelliJ for Java development //////
@@ -569,24 +566,24 @@ workDocked.addNew('com.googlecode.iterm2', 2, 1, WindowBinding.maximize);
 const workJava = new SpaceBinding('workJava', [2, 2, 2]);
 windowManager.bindingSet.add(workJava);
 
-// Vertical screen
-workJava.defaultBinding = new WindowBinding('*', 0, 0);
-
-workJava.addNew('com.jetbrains.intellij.ce', 0, 1, WindowBinding.maximize);
-
 // Laptop
-workJava.addNew('org.mozilla.firefox', 1, 0, WindowBinding.maximize);
+workJava.addNew('org.mozilla.firefox', workLaptop, 0, WindowBinding.maximize);
 
-workJava.addNew('com.tinyspeck.slackmacgap', 1, 1, slack);
-workJava.addNew('com.apple.Notes', 1, 1, notes);
-workJava.addNew('com.apple.iCal', 1, 1, ical);
+workJava.addNew('com.tinyspeck.slackmacgap', workLaptop, 1, slack);
+workJava.addNew('com.apple.Notes', workLaptop, 1, notes);
+workJava.addNew('com.apple.iCal', workLaptop, 1, ical);
+
+// Vertical screen
+workJava.defaultBinding = new WindowBinding('*', workCenter, 0);
+
+workJava.addNew('com.jetbrains.intellij.ce', workCenter, 1, WindowBinding.maximize);
 
 // Horizontal screen
-workJava.addNew('com.postmanlabs.mac', 2, 0);
-workJava.addNew('com.TechSmith.Snagit2018', 2, 0);
-workJava.addNew('org.freeplane.core', 2, 0);
+workJava.addNew('com.postmanlabs.mac', workRight, 0);
+workJava.addNew('com.TechSmith.Snagit2018', workRight, 0);
+workJava.addNew('org.freeplane.core', workRight, 0);
 
-workJava.addNew('com.googlecode.iterm2', 2, 1, WindowBinding.maximize);
+workJava.addNew('com.googlecode.iterm2', workRight, 1, WindowBinding.maximize);
 
 ////// Laptop alone (1, 2, 3, 4) //////
 
