@@ -5,6 +5,10 @@ macOS has an irritating habit of randomly rearranging Spaces and windows when co
 
 To correct this problem, `phoenix-move-windows`  moves windows to the screens and spaces that you have configured when you press `Ctrl-Shift-Alt-Z`. To assist in configuration, it lists all visible open windows and their internal identifiers in the Console when you press `Ctrl-Shift-Alt-X`. Both keybindings are configurable.
 
+## Update, October 2020
+
+I no longer have access to any macOS computers, so I cannot continue to update `phoenix-move-windows`. Therefore, I am archiving this repository.
+
 ## Installation
 
 To install Typescript typings for Phoenix, execute `npx typings install github:mafredri/phoenix-typings --save` from the `phoenix-move-windows` directory.
